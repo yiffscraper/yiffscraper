@@ -26,16 +26,16 @@ class ProjectInfo:
 
 
 # download a file
-def download(s, url, name):
+def download(url, name):
     pathtosaveto = f"scrapes/{name}/"
     filename = getFileName(url)
     fullpath = pathtosaveto + filename
 
-    # TODO: Don't overwrite files.
+    # TODO: Don't overwrite files
 
     mkdir(pathtosaveto)
 
-    in_file = s.get(url, stream=True)
+    in_file = requests.get(url, stream=True)
     with open(fullpath, "wb") as out_file:
         for chunk in in_file.iter_content(chunk_size=8192):
             out_file.write(chunk)
@@ -61,9 +61,8 @@ def getFileName(url):
 
 # Returns list containing all file urls
 def getLinks(url):
-    print("Fetching page")
-    response = requests.get(url)
-    print("Searching for links")
+    s = initSession()
+    response = s.get(url)
     soup = BeautifulSoup(response.content, "html.parser")
 
     links = [elem.get("href") for elem in soup.find_all("a") if elem.get("href") is not None]
@@ -168,6 +167,12 @@ def getProjectInfo(arg):
     return info
 
 
+def initSession():
+    s = requests.session()
+    s.post("https://yiff.party/config", data={"a":"post_view_limit", "d":"all"})
+    return s
+
+
 # Scrape a project
 def scrape(arg):
     info = getProjectInfo(arg)
@@ -182,14 +187,11 @@ def scrape(arg):
     print("Getting links")
     links = getLinks(info.yiffurl)
 
-    print("Setting up download session")
-    s = requests.session()
-    s.post("https://yiff.party/config", {"a":"post_view_limit", "b":"all"})
     print(f"Downloading {len(links)} links")
     t = tqdm(links, unit="file")
     for link in t:
         t.set_description(getFileName(link))
-        download(s, link, info.name)
+        download(link, info.name)
 
 
 # Scrape all the projects
