@@ -26,16 +26,16 @@ class ProjectInfo:
 
 
 # download a file
-def download(URL, name):
+def download(s, url, name):
     pathtosaveto = f"scrapes/{name}/"
-    filename = getFileName(URL)
+    filename = getFileName(url)
     fullpath = pathtosaveto + filename
 
     # TODO: Don't overwrite files.
 
     mkdir(pathtosaveto)
 
-    in_file = requests.get(URL, stream=True)
+    in_file = s.get(url, stream=True)
     with open(fullpath, "wb") as out_file:
         for chunk in in_file.iter_content(chunk_size=8192):
             out_file.write(chunk)
@@ -52,8 +52,8 @@ def mkdir(path):
 
 
 # Returns the name of the file
-def getFileName(URL):
-    lst = URL.rsplit("/")
+def getFileName(url):
+    lst = url.rsplit("/")
     name = lst[-1]
     name = name.replace("%20", "_")
     return name
@@ -61,10 +61,12 @@ def getFileName(URL):
 
 # Returns list containing all file urls
 def getLinks(url):
+    print("Fetching page")
     response = requests.get(url)
+    print("Searching for links")
     soup = BeautifulSoup(response.content, "html.parser")
 
-    links = [elem.get("href") for elem in tqdm(soup.find_all("a")) if elem.get("href") is not None]
+    links = [elem.get("href") for elem in soup.find_all("a") if elem.get("href") is not None]
 
     datalinks = [link for link in links if isDataLink(link)]
 
@@ -174,17 +176,20 @@ def scrape(arg):
         print("Please enter a patreon id, Patreon url, or yiff.party url")
         return
 
-    print(f"Scraping {info.name}: {info.yiffurl}")
+    print(f"Scraping {info.name} ({info.yiffurl})")
 
     # TODO: Detect 404s from yiff.party
-    print(f"Getting links: {info.yiffurl}")
+    print("Getting links")
     links = getLinks(info.yiffurl)
 
-    print(f"Downloading links: {len(links)}")
-    for link in tqdm(links):
-        print(link)
-        # TODO: Progress bar
-        download(link, info.name)
+    print("Setting up download session")
+    s = requests.session()
+    s.post("https://yiff.party/config", {"a":"post_view_limit", "b":"all"})
+    print(f"Downloading {len(links)} links")
+    t = tqdm(links, unit="file")
+    for link in t:
+        t.set_description(getFileName(link))
+        download(s, link, info.name)
 
 
 # Scrape all the projects
