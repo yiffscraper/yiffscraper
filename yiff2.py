@@ -1,20 +1,28 @@
-#Original YiffScraper by shubham418
-#Update Project Manager: LaChocola
-#Update Coder: DigiDuncan
+# Original YiffScraper by shubham418
+# Update Project Manager: LaChocola
+# Update Coder: DigiDuncan
+# Bug fixer: Natalie Fearnley
 
+import re
 import sys
 import os
-import requests
-import re
-import html
 import errno
+
+import requests
 from bs4 import BeautifulSoup
 
-checkstrings = ["patreon_data", "patreon_inline", "shared_data"]
-with open("./currentcookie.txt") as f:
-    currentcookie = f.readlines()
-currentcookie = [x.strip() for x in currentcookie]
-currentcookie = currentcookie[0]
+
+class ProjectInfo:
+    def __init__(self):
+        self.id = ""
+        self.name = ""
+        self.patreonurl = ""
+
+    @property
+    def yiffurl(self):
+        url = f"http://yiff.party/patreon/{self.id}"
+        return url
+
 
 def mkdir(path):
     try:
@@ -25,100 +33,157 @@ def mkdir(path):
         else:
             raise
 
+
 # Returns the name of the file
 def getFileName(URL):
-    lst = URL.rsplit('/')
+    lst = URL.rsplit("/")
     name = lst[-1]
-    name = name.replace('%20', '_')
+    name = name.replace("%20", "_")
     return name
 
-# Returns lst containing all files
-def getLinks(URL):
-    response = requests.get(URL)
+
+# Returns list containing all file urls
+def getLinks(url):
+    response = requests.get(url)
     soup = BeautifulSoup(response.content, "html.parser")
 
-    links = soup.find_all('a')
-    unfin_paths = []
-    for link in links:
-        href = link.get('href')
-        if href is None:
-            continue
-        # Check if link is of data
-        for string in checkstrings:
-            if string in href:
-                if re.match("\/.+\/\d+\/\d+\/\d+\/.+$", href):
-                    unfin_paths.append(href)
-    fin_paths = []
-    for path in unfin_paths:
-        fin_paths.append(URL + path)
-    return fin_paths
+    links = [elem.get("href") for elem in soup.find_all("a") if elem.get("href") is not None]
 
+    datalinks = [link for link in links if isDataLink(link)]
+
+    abspaths = [url + path for path in datalinks]
+
+    return abspaths
+
+
+# Check if the given url is a data link
+def isDataLink(url):
+    checkstrings = ["patreon_data", "patreon_inline", "shared_data"]
+    # Check if link is of data
+    for s in checkstrings:
+        if s in url and re.match(r"/.+/\d+/\d+/\d+/.+$", url):
+            return True
+    return False
+
+
+# download a file
 def download(URL, name):
-    pathtosaveto = f"Scrapes/{name}/"
+    pathtosaveto = f"scrapes/{name}/"
     filename = getFileName(URL)
     fullpath = pathtosaveto + filename
 
-    #TODO: Don't overwrite files.
+    # TODO: Don't overwrite files.
 
     mkdir(pathtosaveto)
 
     in_file = requests.get(URL, stream=True)
-    out_file = open(fullpath, 'wb')
-    for chunk in in_file.iter_content(chunk_size=8192):
-        out_file.write(chunk)
-    out_file.close()
+    with open(fullpath, "wb") as out_file:
+        for chunk in in_file.iter_content(chunk_size=8192):
+            out_file.write(chunk)
 
-#Get the URL of the page we're scraping.
-def getYiffPage(URL):
 
-    response = requests.get(URL)
+# get creator name, patreod id, patreon url and yiff url
+def getProjectInfoFromYiffUrl(url):
+    match = re.search(r"yiff.party/(:?patreon/)?(\d+)", url)
+    if match is None:
+        return None
+    patreonid = match.group(1)
+    return getProjectInfoFromPatreonId(patreonid)
+
+
+# get creator name, patreod id, patreon url and yiff url
+def getProjectInfoFromPatreonId(patreonid):
+    url = f"https://www.patreon.com/user?u={patreonid}"
+    return getProjectInfoFromPatreonUrl(url)
+
+
+# get creator name, patreod id, patreon url and yiff url
+def getProjectInfoFromPatreonUrl(url):
+    response = requests.get(url)
     soup = BeautifulSoup(response.content, "html.parser")
 
-    if "patreon.com" in URL:
-        idsearch = re.search("https:\/\/www\.patreon\.com\/api\/user\/(\d+)", str(soup))
-        if idsearch: idtag = idsearch.group(1)
-        URL = f"http://yiff.party/patreon/{idtag}"
-    elif re.match("\d+$", URL):
-        idtag = URL
-        URL = f"http://yiff.party/patreon/{idtag}"
-    elif "yiff.party" in URL:
-        pass
-    else:
-        URL = None
-        print("Please input either a Patreon or a yiff.party link.")
-    return URL
+    info = ProjectInfo()
+    info.name = scrapeNameFromPatreon(soup)
+    info.id = scrapeIdFromPatreon(soup)
+    info.patreonurl = scrapeUrlFromPatreon(soup)
 
-#Get the name of the creator.
-def getYiffName(URL):
+    return info
 
-    name = None
 
-    response = requests.get(URL)
-    soup = BeautifulSoup(response.content, "html.parser")
+# scrape creator name from patreon page
+def scrapeNameFromPatreon(soup):
+    elem = soup.find("meta", name="title")
+    if elem is None:
+        return None
 
-    name_element = re.search('<meta content="(.*) is creating', str(soup))
-    if name_element: name = name_element.group(1)
+    title = elem["content"]
+    match = re.search("(.*) (?:are|is) creating", title)
+    if match is None:
+        return None
+
+    name = match.group(1)
 
     return name
 
-#Scrape each project.
-def scrape(project):
-    patreonname = getYiffName(project)
-    yiffpage = getYiffPage(project)
 
-    #TODO: Detect 404's from y.p.
+# scrape id from patreon page
+def scrapeIdFromPatreon(soup):
+    match = re.search(r"https://www.patreon.com/api/user/(\d+)", str(soup))
+    if match is not None:
+        patreonid = match.group(1)
+    return patreonid
 
-    print(f"Scraping {patreonname}: {yiffpage}")
 
-    links = getLinks(yiffpage)
+# scrape url from patreon page
+def scrapeUrlFromPatreon(soup):
+    elem = soup.find("meta", name="canonicalURL")
+    if elem is None:
+        return None
+
+    url = elem["content"]
+
+    return url
+
+
+# Takes a patreon id, patreon url, or yiff url
+# Returns project name, patreon id, patreon url, and yiff url
+def getProjectInfo(arg):
+    info = None
+
+    if re.match(r"\d+$", arg):
+        # patreon id
+        info = getProjectInfoFromPatreonId(arg)
+    elif "patreon.com" in arg:
+        # patreon url
+        info = getProjectInfoFromPatreonUrl(arg)
+    elif "yiff.party/patreon/" in arg or "yiff.party/" in arg:
+        # yiff url
+        info = getProjectInfoFromYiffUrl(arg)
+
+    return info
+
+
+# Scrape a project
+def scrape(arg):
+    info = getProjectInfo(arg)
+    if info is None:
+        print(f"Invalid argument: {arg}")
+        print("Please enter a patreon id, Patreon url, or yiff.party url")
+        return
+
+    print(f"Scraping {info.name}: {info.yiffurl}")
+
+    # TODO: Detect 404s from yiff.party
+    links = getLinks(info.yiffurl)
     for link in links:
-        #TODO: Progress bar.
-        download(link, patreonname)
+        # TODO: Progress bar
+        download(link, info.name)
 
-#Main program.
-if __name__ == "__main__":
+
+# Scrape all the projects
+def main():
     projects = sys.argv[1:]
-    print("""
+    print(r"""
  __     ___  __  __ _____
  \ \   / (_)/ _|/ _/ ____|
   \ \_/ / _| |_| || (___   ___ _ __ __ _ _ __   ___ _ __
@@ -128,9 +193,15 @@ if __name__ == "__main__":
                                         | |
                                         |_|
     """)
+
     for project in projects:
         scrape(project)
 
     print("\n*******************************************************************************\n")
     print("\nAll projects done!\n")
     print("\nEnjoy ;)")
+
+
+# Main program.
+if __name__ == "__main__":
+    main()
