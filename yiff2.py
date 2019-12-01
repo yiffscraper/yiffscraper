@@ -112,7 +112,7 @@ def getProjectInfoFromPatreonUrl(url):
 
 # scrape creator name from patreon page
 def scrapeNameFromPatreon(soup):
-    elem = soup.find("meta", name="title")
+    elem = soup.find("meta", attrs={"name": "title"})
     if elem is None:
         return None
 
@@ -136,7 +136,7 @@ def scrapeIdFromPatreon(soup):
 
 # scrape url from patreon page
 def scrapeUrlFromPatreon(soup):
-    elem = soup.find("meta", name="canonicalURL")
+    elem = soup.find("meta", attrs={"name": "canonicalURL"})
     if elem is None:
         return None
 
