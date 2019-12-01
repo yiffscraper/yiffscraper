@@ -10,6 +10,7 @@ import errno
 
 import requests
 from bs4 import BeautifulSoup
+from tqdm import tqdm
 
 
 class ProjectInfo:
@@ -22,6 +23,22 @@ class ProjectInfo:
     def yiffurl(self):
         url = f"http://yiff.party/patreon/{self.id}"
         return url
+
+
+# download a file
+def download(URL, name):
+    pathtosaveto = f"scrapes/{name}/"
+    filename = getFileName(URL)
+    fullpath = pathtosaveto + filename
+
+    # TODO: Don't overwrite files.
+
+    mkdir(pathtosaveto)
+
+    in_file = requests.get(URL, stream=True)
+    with open(fullpath, "wb") as out_file:
+        for chunk in in_file.iter_content(chunk_size=8192):
+            out_file.write(chunk)
 
 
 def mkdir(path):
@@ -47,7 +64,7 @@ def getLinks(url):
     response = requests.get(url)
     soup = BeautifulSoup(response.content, "html.parser")
 
-    links = [elem.get("href") for elem in soup.find_all("a") if elem.get("href") is not None]
+    links = [elem.get("href") for elem in tqdm(soup.find_all("a")) if elem.get("href") is not None]
 
     datalinks = [link for link in links if isDataLink(link)]
 
@@ -65,26 +82,11 @@ def isDataLink(url):
             return True
     return False
 
-
-# download a file
-def download(URL, name):
-    pathtosaveto = f"scrapes/{name}/"
-    filename = getFileName(URL)
-    fullpath = pathtosaveto + filename
-
-    # TODO: Don't overwrite files.
-
-    mkdir(pathtosaveto)
-
-    in_file = requests.get(URL, stream=True)
-    with open(fullpath, "wb") as out_file:
-        for chunk in in_file.iter_content(chunk_size=8192):
-            out_file.write(chunk)
-
-
 # get creator name, patreod id, patreon url and yiff url
+
+
 def getProjectInfoFromYiffUrl(url):
-    match = re.search(r"yiff.party/(:?patreon/)?(\d+)", url)
+    match = re.search(r"yiff.party/(?:patreon/)?(\d+)", url)
     if match is None:
         return None
     patreonid = match.group(1)
@@ -128,6 +130,7 @@ def scrapeNameFromPatreon(soup):
 
 # scrape id from patreon page
 def scrapeIdFromPatreon(soup):
+    patreonid = None
     match = re.search(r"https://www.patreon.com/api/user/(\d+)", str(soup))
     if match is not None:
         patreonid = match.group(1)
@@ -174,8 +177,12 @@ def scrape(arg):
     print(f"Scraping {info.name}: {info.yiffurl}")
 
     # TODO: Detect 404s from yiff.party
+    print(f"Getting links: {info.yiffurl}")
     links = getLinks(info.yiffurl)
-    for link in links:
+
+    print(f"Downloading links: {len(links)}")
+    for link in tqdm(links):
+        print(link)
         # TODO: Progress bar
         download(link, info.name)
 
