@@ -6,7 +6,7 @@ projpatreonurl = "https://www.patreon.com/belledelphine"
 projyiffurl = "http://yiff.party/patreon/7330723"
 
 
-# TODO: Find a mock out the downloads, so running these tests don't take forever
+# TODO: Find a way to mock out the downloads, so running these tests don't take forever
 # def test_scrapeFromPatreonId():
 #     yiff.scrape(projid)
 #     # TODO: Check result
