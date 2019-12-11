@@ -1,2 +1,2 @@
-python yiff2.py https://www.patreon.com/belledelphine
+python yiff.py https://www.patreon.com/belledelphine
 pause
