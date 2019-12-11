@@ -83,9 +83,8 @@ def isDataLink(url):
             return True
     return False
 
+
 # get creator name, patreod id, patreon url and yiff url
-
-
 def getProjectInfoFromYiffUrl(url):
     match = re.search(r"yiff.party/(?:patreon/)?(\d+)", url)
     if match is None:
@@ -169,7 +168,7 @@ def getProjectInfo(arg):
 
 def initSession():
     s = requests.session()
-    s.post("https://yiff.party/config", data={"a":"post_view_limit", "d":"all"})
+    s.post("https://yiff.party/config", data={"a": "post_view_limit", "d": "all"})
     return s
 
 
