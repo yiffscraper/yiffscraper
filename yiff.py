@@ -210,7 +210,6 @@ def scrape(arg):
 # Scrape all the projects
 def main():
     projects = sys.argv[1:]
-    projects = ["http://yiff.party/patreon/7330723"]
     print(r"""
  __     ___  __  __ _____
  \ \   / (_)/ _|/ _/ ____|
