@@ -7,6 +7,7 @@ import re
 import sys
 import os
 import errno
+import urllib
 
 import requests
 from bs4 import BeautifulSoup
@@ -82,19 +83,14 @@ def getLinks(url):
 
     datalinks = [link for link in links if isDataLink(link)]
 
-    abspaths = [url + path for path in datalinks]
+    abspaths = [urllib.parse.urljoin(url, path) for path in datalinks]
 
     return abspaths
 
 
 # Check if the given url is a data link
 def isDataLink(url):
-    checkstrings = ["patreon_data", "patreon_inline", "shared_data"]
-    # Check if link is of data
-    for s in checkstrings:
-        if s in url and re.match(r"/.+/\d+/\d+/\d+/.+$", url):
-            return True
-    return False
+    return re.match(r"/(patreon_data|patreon_inline|shared_data)/\d+/\d+/.+$", url) is not None
 
 
 # get creator name, patreod id, patreon url and yiff url
@@ -189,28 +185,32 @@ def initSession():
 
 # Scrape a project
 def scrape(arg):
-    info = getProjectInfo(arg)
-    if info is None:
-        print(f"Invalid argument: {arg}")
-        print("Please enter a patreon id, Patreon url, or yiff.party url")
-        return
+    try:
+        info = getProjectInfo(arg)
+        if info is None:
+            print(f"Invalid argument: {arg}")
+            print("Please enter a patreon id, Patreon url, or yiff.party url")
+            return
 
-    print(f"Scraping {info.name} ({info.yiffurl})")
+        print(f"Scraping {info.name} ({info.yiffurl})")
 
-    # TODO: Detect 404s from yiff.party
-    print("Getting links")
-    links = getLinks(info.yiffurl)
+        # TODO: Detect 404s from yiff.party
+        print("Getting links")
+        links = getLinks(info.yiffurl)
 
-    print(f"Downloading {len(links)} links")
-    t = tqdm(links, unit="file")
-    for link in t:
-        t.set_description(getFileName(link))
-        download(link, info.name)
+        print(f"Downloading {len(links)} links")
+        t = tqdm(links, unit="file")
+        for link in t:
+            t.set_description(getFileName(link))
+            download(link, info.name)
+    except requests.exceptions.HTTPError as e:
+        print(e)
 
 
 # Scrape all the projects
 def main():
     projects = sys.argv[1:]
+    projects = ["http://yiff.party/patreon/7330723"]
     print(r"""
  __     ___  __  __ _____
  \ \   / (_)/ _|/ _/ ____|
