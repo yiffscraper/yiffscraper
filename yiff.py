@@ -3,6 +3,7 @@
 # Update Coder: DigiDuncan
 # Bug fixer: Natalie Fearnley
 
+import functools
 import re
 import sys
 import os
@@ -12,6 +13,8 @@ import urllib
 import requests
 from bs4 import BeautifulSoup
 from tqdm import tqdm
+
+from httperrors import retryrequest
 
 
 class ProjectInfo:
@@ -38,6 +41,7 @@ class ProjectInfo:
 
 
 # download a file
+@retryrequest(504)
 def download(url, name):
     pathtosaveto = f"scrapes/{name}/"
     filename = getFileName(url)
@@ -185,26 +189,26 @@ def initSession():
 
 # Scrape a project
 def scrape(arg):
-    try:
-        info = getProjectInfo(arg)
-        if info is None:
-            print(f"Invalid argument: {arg}")
-            print("Please enter a patreon id, Patreon url, or yiff.party url")
-            return
+    info = getProjectInfo(arg)
+    if info is None:
+        print(f"Invalid argument: {arg}")
+        print("Please enter a patreon id, Patreon url, or yiff.party url")
+        return
 
-        print(f"Scraping {info.name} ({info.yiffurl})")
+    print(f"Scraping {info.name} ({info.yiffurl})")
 
-        # TODO: Detect 404s from yiff.party
-        print("Getting links")
-        links = getLinks(info.yiffurl)
+    # TODO: Detect 404s from yiff.party
+    print("Getting links")
+    links = getLinks(info.yiffurl)
 
-        print(f"Downloading {len(links)} links")
-        t = tqdm(links, unit="file")
-        for link in t:
-            t.set_description(getFileName(link))
+    print(f"Downloading {len(links)} links")
+    t = tqdm(links, unit="file")
+    for link in t:
+        t.set_description(getFileName(link))
+        try:
             download(link, info.name)
-    except requests.exceptions.HTTPError as e:
-        print(e)
+        except requests.exceptions.HTTPError as e:
+            tqdm.write(f"{e.response.status_code} failed to download {link}")
 
 
 # Scrape all the projects
@@ -222,7 +226,10 @@ def main():
     """)
 
     for project in projects:
-        scrape(project)
+        try:
+            scrape(project)
+        except requests.exceptions.HTTPError as e:
+            print(e)
 
     print("\n*******************************************************************************\n")
     print("\nAll projects done!\n")
