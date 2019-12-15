@@ -24,6 +24,17 @@ class ProjectInfo:
         url = f"http://yiff.party/patreon/{self.id}"
         return url
 
+    @property
+    def yiffapiurl(self):
+        url = f"http://yiff.party/{self.id}.json"
+        return url
+
+    def __str__(self):
+        return f"{self.name} ({self.id})"
+
+    def __repr__(self):
+        return f"ProjectInfo(id={self.id!r}, name={self.name!r}, patreonurl={self.patreonurl!r})"
+
 
 # download a file
 def download(url, name):
@@ -35,9 +46,10 @@ def download(url, name):
 
     mkdir(pathtosaveto)
 
-    in_file = requests.get(url, stream=True)
+    r = requests.get(url, stream=True)
+    r.raise_for_status()
     with open(fullpath, "wb") as out_file:
-        for chunk in in_file.iter_content(chunk_size=8192):
+        for chunk in r.iter_content(chunk_size=8192):
             out_file.write(chunk)
 
 
@@ -62,8 +74,9 @@ def getFileName(url):
 # Returns list containing all file urls
 def getLinks(url):
     s = initSession()
-    response = s.get(url)
-    soup = BeautifulSoup(response.content, "html.parser")
+    r = s.get(url)
+    r.raise_for_status()
+    soup = BeautifulSoup(r.content, "html.parser")
 
     links = [elem.get("href") for elem in soup.find_all("a") if elem.get("href") is not None]
 
@@ -101,8 +114,9 @@ def getProjectInfoFromPatreonId(patreonid):
 
 # get creator name, patreod id, patreon url and yiff url
 def getProjectInfoFromPatreonUrl(url):
-    response = requests.get(url)
-    soup = BeautifulSoup(response.content, "html.parser")
+    r = requests.get(url)
+    r.raise_for_status()
+    soup = BeautifulSoup(r.content, "html.parser")
 
     info = ProjectInfo()
     info.name = scrapeNameFromPatreon(soup)
@@ -168,7 +182,8 @@ def getProjectInfo(arg):
 
 def initSession():
     s = requests.session()
-    s.post("https://yiff.party/config", data={"a": "post_view_limit", "d": "all"})
+    r = s.post("https://yiff.party/config", data={"a": "post_view_limit", "d": "all"})
+    r.raise_for_status()
     return s
 
 

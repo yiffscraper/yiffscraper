@@ -1,0 +1,6 @@
+https://yiff.party/creator_status?c=7330723&s=patreon
+https://yiff.party/7330723.json
+https://yiff.party/votes?c=7330723&s=patreon
+https://yiff.party/render_posts?c=7330723&s=patreon&p=1
+https://yiff.party/recent.json?limit=9&filter=Furry,Pony,Human,Xeno,OtherTheme,DigitalArt,TraditionalArt,CGI,Animation,Games,Literature,Music,Cosplay,Crafts,Videos,OtherType
+https://yiff.party/json/creators.json?_=1576083117272
