@@ -1,6 +1,7 @@
 
 import functools
 import requests
+import aiohttp
 
 
 def retryrequest(status_code=None, retries=4, outfunc=print):
@@ -20,6 +21,13 @@ def retryrequest(status_code=None, retries=4, outfunc=print):
                     break
                 except requests.exceptions.HTTPError as e:
                     if e.response.status_code not in status_code:
+                        raise
+                    if tries >= retries:
+                        raise
+                    outfunc(e)
+                    outfunc("Retrying")
+                except aiohttp.ClientResponseError as e:
+                    if e.status not in status_code:
                         raise
                     if tries >= retries:
                         raise

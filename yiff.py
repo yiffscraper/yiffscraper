@@ -3,12 +3,13 @@
 # Update Coder: DigiDuncan
 # Bug fixer: Natalie Fearnley
 
-
+import asyncio
 import re
 import sys
 import urllib.parse
 from pathlib import Path, PurePosixPath
 
+import aiohttp
 import requests
 from bs4 import BeautifulSoup
 from tqdm import tqdm
@@ -159,12 +160,14 @@ class ProjectItem:
         return self.project.path / self.filename
 
     @retryrequest(504, outfunc=tqdm.write)
-    def download(self):
-        r = requests.get(self.url, stream=True)
-        r.raise_for_status()
+    async def download(self, session):
         self.fullpath.parent.mkdir(exist_ok=True)
+        r = await session.get(self.url)
         with open(self.fullpath, "wb") as out_file:
-            for chunk in r.iter_content(chunk_size=8192):
+            while True:
+                chunk = await r.content.read(8192)
+                if not chunk:
+                    break
                 out_file.write(chunk)
 
     def __str__(self):
@@ -190,7 +193,18 @@ class ProjectItem:
         return path
 
 
-def scrape(arg):
+async def downloadAll(items):
+    connector = aiohttp.connector.TCPConnector(limit=25, limit_per_host=10)
+    async with aiohttp.ClientSession(connector=connector, raise_for_status=True) as session:
+        tasks = [item.download(session) for item in items]
+        for task in tqdm(asyncio.as_completed(tasks), total=len(tasks), unit="file"):
+            try:
+                await task
+            except aiohttp.ClientResponseError as e:
+                tqdm.write(f"{e.status} failed to download {e.request_info.url}")
+
+
+async def scrape(arg):
     project = Project.get(arg)
     if project is None:
         print(f"Invalid argument: {arg}")
@@ -203,18 +217,11 @@ def scrape(arg):
     items = project.getItems()
 
     print(f"Downloading {len(items)} links")
-    t = tqdm(items, unit="file")
-
-    for item in t:
-        t.set_description(item.filename)
-        try:
-            item.download()
-        except requests.exceptions.HTTPError as e:
-            tqdm.write(f"{e.response.status_code} failed to download {item}")
+    await downloadAll(items)
 
 
 # Scrape all the projects
-def main():
+async def main():
     projects = sys.argv[1:]
     print(r"""
  __     ___  __  __ _____
@@ -229,15 +236,14 @@ def main():
 
     for project in projects:
         try:
-            scrape(project)
+            await scrape(project)
         except requests.exceptions.HTTPError as e:
             print(e)
 
-    print("\n*******************************************************************************\n")
     print("\nAll projects done!\n")
     print("\nEnjoy ;)")
 
 
 # Main program.
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
