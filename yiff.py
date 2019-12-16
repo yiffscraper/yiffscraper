@@ -14,7 +14,7 @@ import requests
 from bs4 import BeautifulSoup
 from tqdm import tqdm
 
-from httperrors import retryrequest
+import downloader
 
 
 class PatreonScraper:
@@ -156,19 +156,8 @@ class ProjectItem:
         self.filename = self.getFilename(url)
 
     @property
-    def fullpath(self):
+    def path(self):
         return self.project.path / self.filename
-
-    @retryrequest(504, outfunc=tqdm.write)
-    async def download(self, session):
-        self.fullpath.parent.mkdir(exist_ok=True)
-        r = await session.get(self.url)
-        with open(self.fullpath, "wb") as out_file:
-            while True:
-                chunk = await r.content.read(8192)
-                if not chunk:
-                    break
-                out_file.write(chunk)
 
     def __str__(self):
         return self.url
@@ -193,10 +182,10 @@ class ProjectItem:
         return path
 
 
-async def downloadAll(items):
+async def downloadAll(items, update):
     connector = aiohttp.connector.TCPConnector(limit=25, limit_per_host=10)
     async with aiohttp.ClientSession(connector=connector, raise_for_status=True) as session:
-        tasks = [item.download(session) for item in items]
+        tasks = [downloader.download(session, item.url, item.path, update) for item in items]
         for task in tqdm(asyncio.as_completed(tasks), total=len(tasks), unit="file"):
             try:
                 await task
@@ -204,25 +193,25 @@ async def downloadAll(items):
                 tqdm.write(f"{e.status} failed to download {e.request_info.url}")
 
 
-async def scrape(arg):
+async def scrape(arg, update):
     project = Project.get(arg)
     if project is None:
         print(f"Invalid argument: {arg}")
         print("Please enter a patreon id, Patreon url, or yiff.party url")
         return
 
-    print(f"Scraping {project})")
+    print(f"Scraping {project}")
 
     print("Getting links")
     items = project.getItems()
 
     print(f"Downloading {len(items)} links")
-    await downloadAll(items)
+    await downloadAll(items, update)
 
 
 # Scrape all the projects
 async def main():
-    projects = sys.argv[1:]
+    args = sys.argv[1:]
     print(r"""
  __     ___  __  __ _____
  \ \   / (_)/ _|/ _/ ____|
@@ -234,9 +223,12 @@ async def main():
                                         |_|
     """)
 
+    update = "--update" in args
+    projects = [a for a in args if not a.startswith("--")]
+
     for project in projects:
         try:
-            await scrape(project)
+            await scrape(project, update)
         except requests.exceptions.HTTPError as e:
             print(e)
 
