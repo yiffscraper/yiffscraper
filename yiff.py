@@ -3,12 +3,11 @@
 # Update Coder: DigiDuncan
 # Bug fixer: Natalie Fearnley
 
-import functools
+
 import re
 import sys
-import os
-import errno
-import urllib
+import urllib.parse
+from pathlib import Path, PurePosixPath
 
 import requests
 from bs4 import BeautifulSoup
@@ -17,7 +16,45 @@ from tqdm import tqdm
 from httperrors import retryrequest
 
 
-class ProjectInfo:
+class PatreonScraper:
+    def __init__(self, soup):
+        self.soup = soup
+
+    @property
+    def name(self):
+        elem = self.soup.find("meta", attrs={"name": "title"})
+        if elem is None:
+            return None
+
+        title = elem["content"]
+        match = re.search("(.*) (?:are|is) creating", title)
+        if match is None:
+            return None
+
+        name = match.group(1)
+
+        return name
+
+    @property
+    def id(self):
+        patreonid = None
+        match = re.search(r"https://www.patreon.com/api/user/(\d+)", str(self.soup))
+        if match is not None:
+            patreonid = match.group(1)
+        return patreonid
+
+    @property
+    def url(self):
+        elem = self.soup.find("meta", attrs={"name": "canonicalURL"})
+        if elem is None:
+            return None
+
+        url = elem["content"]
+
+        return url
+
+
+class Project:
     def __init__(self):
         self.id = ""
         self.name = ""
@@ -33,182 +70,147 @@ class ProjectInfo:
         url = f"http://yiff.party/{self.id}.json"
         return url
 
+    @property
+    def path(self):
+        path = Path("scrapes") / self.name
+        return path
+
+    # Returns list containing all project times
+    def getItems(self):
+        s = self.initSession()
+        r = s.get(self.yiffurl)
+        r.raise_for_status()
+        soup = BeautifulSoup(r.content, "html.parser")
+
+        links = [elem.get("href") for elem in soup.find_all("a") if elem.get("href") is not None]
+
+        datalinks = [link for link in links if self.isDataLink(link)]
+
+        abspaths = [urllib.parse.urljoin(self.yiffurl, path) for path in datalinks]
+
+        items = [ProjectItem(self, url) for url in abspaths]
+
+        return items
+
+    @classmethod
+    def initSession(cls):
+        s = requests.session()
+        r = s.post("https://yiff.party/config", data={"a": "post_view_limit", "d": "all"})
+        r.raise_for_status()
+        return s
+
+    # Check if the given url is a data link
+    @classmethod
+    def isDataLink(cls, url):
+        return re.match(r"/(patreon_data|patreon_inline|shared_data)/\d+/\d+/.+$", url) is not None
+
+    # Takes a patreon id, patreon url, or yiff url
+    # Returns a Project object
+    @classmethod
+    def get(cls, arg):
+        patreonurl = None
+        if "patreon.com" in arg:
+            patreonurl = arg
+        elif re.match(r"\d+$", arg):
+            patreonid = arg
+            patreonurl = f"https://www.patreon.com/user?u={patreonid}"
+        elif "yiff.party/patreon/" in arg or "yiff.party/" in arg:
+            yiffurl = arg
+            match = re.search(r"yiff.party/(?:patreon/)?(\d+)", yiffurl)
+            if match is None:
+                return None
+            patreonid = match.group(1)
+            patreonurl = f"https://www.patreon.com/user?u={patreonid}"
+
+        if patreonurl is None:
+            return None
+
+        return cls.getFromPatreonUrl(patreonurl)
+
+    @classmethod
+    def getFromPatreonUrl(cls, patreonurl):
+        r = requests.get(patreonurl)
+        r.raise_for_status()
+        soup = BeautifulSoup(r.content, "html.parser")
+        scraper = PatreonScraper(soup)
+
+        project = Project()
+        project.name = scraper.name
+        project.id = scraper.id
+        project.patreonurl = scraper.url
+
+        return project
+
     def __str__(self):
         return f"{self.name} ({self.id})"
 
     def __repr__(self):
-        return f"ProjectInfo(id={self.id!r}, name={self.name!r}, patreonurl={self.patreonurl!r})"
+        return f"{type(self).__name__}(id={self.id!r}, name={self.name!r}, patreonurl={self.patreonurl!r})"
 
 
-# download a file
-@retryrequest(504)
-def download(url, name):
-    pathtosaveto = f"scrapes/{name}/"
-    filename = getFileName(url)
-    fullpath = pathtosaveto + filename
+class ProjectItem:
+    def __init__(self, project, url):
+        self.project = project
+        self.url = url
+        self.filename = self.getFilename(url)
 
-    # TODO: Don't overwrite files
+    @property
+    def fullpath(self):
+        return self.project.path / self.filename
 
-    mkdir(pathtosaveto)
+    @retryrequest(504, outfunc=tqdm.write)
+    def download(self):
+        r = requests.get(self.url, stream=True)
+        r.raise_for_status()
+        self.fullpath.parent.mkdir(exist_ok=True)
+        with open(self.fullpath, "wb") as out_file:
+            for chunk in r.iter_content(chunk_size=8192):
+                out_file.write(chunk)
 
-    r = requests.get(url, stream=True)
-    r.raise_for_status()
-    with open(fullpath, "wb") as out_file:
-        for chunk in r.iter_content(chunk_size=8192):
-            out_file.write(chunk)
+    def __str__(self):
+        return self.url
 
+    # Replace quoted and unquoted unsafe characters in a path
+    @classmethod
+    def makeUrlPathSafe(cls, pathstr):
+        unsafe = list('\\:*?"<>| ')
+        unsafe += [urllib.parse.quote(c, safe="").upper() for c in '\\/:*?"<>| ']
+        unsafe += [urllib.parse.quote(c, safe="").lower() for c in '\\/:*?"<>| ']
+        for c in unsafe:
+            pathstr = pathstr.replace(c, "_")
+        return pathstr
 
-def mkdir(path):
-    try:
-        os.makedirs(path)
-    except OSError as exc:  # Python >2.5
-        if exc.errno == errno.EEXIST and os.path.isdir(path):
-            pass
-        else:
-            raise
-
-
-# Returns the name of the file
-def getFileName(url):
-    lst = url.rsplit("/")
-    name = lst[-1]
-    name = name.replace("%20", "_")
-    return name
-
-
-# Returns list containing all file urls
-def getLinks(url):
-    s = initSession()
-    r = s.get(url)
-    r.raise_for_status()
-    soup = BeautifulSoup(r.content, "html.parser")
-
-    links = [elem.get("href") for elem in soup.find_all("a") if elem.get("href") is not None]
-
-    datalinks = [link for link in links if isDataLink(link)]
-
-    abspaths = [urllib.parse.urljoin(url, path) for path in datalinks]
-
-    return abspaths
+    # Returns the name of the file
+    @classmethod
+    def getFilename(cls, url):
+        pathstr = urllib.parse.urlparse(url).path
+        safepathstr = cls.makeUrlPathSafe(pathstr)
+        unquotedpathstr = urllib.parse.unquote(safepathstr)
+        path = "_".join(PurePosixPath(unquotedpathstr).parts[-2:])
+        return path
 
 
-# Check if the given url is a data link
-def isDataLink(url):
-    return re.match(r"/(patreon_data|patreon_inline|shared_data)/\d+/\d+/.+$", url) is not None
-
-
-# get creator name, patreod id, patreon url and yiff url
-def getProjectInfoFromYiffUrl(url):
-    match = re.search(r"yiff.party/(?:patreon/)?(\d+)", url)
-    if match is None:
-        return None
-    patreonid = match.group(1)
-    return getProjectInfoFromPatreonId(patreonid)
-
-
-# get creator name, patreod id, patreon url and yiff url
-def getProjectInfoFromPatreonId(patreonid):
-    url = f"https://www.patreon.com/user?u={patreonid}"
-    return getProjectInfoFromPatreonUrl(url)
-
-
-# get creator name, patreod id, patreon url and yiff url
-def getProjectInfoFromPatreonUrl(url):
-    r = requests.get(url)
-    r.raise_for_status()
-    soup = BeautifulSoup(r.content, "html.parser")
-
-    info = ProjectInfo()
-    info.name = scrapeNameFromPatreon(soup)
-    info.id = scrapeIdFromPatreon(soup)
-    info.patreonurl = scrapeUrlFromPatreon(soup)
-
-    return info
-
-
-# scrape creator name from patreon page
-def scrapeNameFromPatreon(soup):
-    elem = soup.find("meta", attrs={"name": "title"})
-    if elem is None:
-        return None
-
-    title = elem["content"]
-    match = re.search("(.*) (?:are|is) creating", title)
-    if match is None:
-        return None
-
-    name = match.group(1)
-
-    return name
-
-
-# scrape id from patreon page
-def scrapeIdFromPatreon(soup):
-    patreonid = None
-    match = re.search(r"https://www.patreon.com/api/user/(\d+)", str(soup))
-    if match is not None:
-        patreonid = match.group(1)
-    return patreonid
-
-
-# scrape url from patreon page
-def scrapeUrlFromPatreon(soup):
-    elem = soup.find("meta", attrs={"name": "canonicalURL"})
-    if elem is None:
-        return None
-
-    url = elem["content"]
-
-    return url
-
-
-# Takes a patreon id, patreon url, or yiff url
-# Returns project name, patreon id, patreon url, and yiff url
-def getProjectInfo(arg):
-    info = None
-
-    if re.match(r"\d+$", arg):
-        # patreon id
-        info = getProjectInfoFromPatreonId(arg)
-    elif "patreon.com" in arg:
-        # patreon url
-        info = getProjectInfoFromPatreonUrl(arg)
-    elif "yiff.party/patreon/" in arg or "yiff.party/" in arg:
-        # yiff url
-        info = getProjectInfoFromYiffUrl(arg)
-
-    return info
-
-
-def initSession():
-    s = requests.session()
-    r = s.post("https://yiff.party/config", data={"a": "post_view_limit", "d": "all"})
-    r.raise_for_status()
-    return s
-
-
-# Scrape a project
 def scrape(arg):
-    info = getProjectInfo(arg)
-    if info is None:
+    project = Project.get(arg)
+    if project is None:
         print(f"Invalid argument: {arg}")
         print("Please enter a patreon id, Patreon url, or yiff.party url")
         return
 
-    print(f"Scraping {info.name} ({info.yiffurl})")
+    print(f"Scraping {project})")
 
-    # TODO: Detect 404s from yiff.party
     print("Getting links")
-    links = getLinks(info.yiffurl)
+    items = project.getItems()
 
-    print(f"Downloading {len(links)} links")
-    t = tqdm(links, unit="file")
-    for link in t:
-        t.set_description(getFileName(link))
+    print(f"Downloading {len(items)} links")
+    t = tqdm(items, unit="file")
+
+    for item in t:
+        t.set_description(item.filename)
         try:
-            download(link, info.name)
+            item.download()
         except requests.exceptions.HTTPError as e:
-            tqdm.write(f"{e.response.status_code} failed to download {link}")
+            tqdm.write(f"{e.response.status_code} failed to download {item}")
 
 
 # Scrape all the projects

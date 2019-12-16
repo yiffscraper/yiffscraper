@@ -27,24 +27,24 @@ def test_initSession():
     assert s.cookies.get("party", domain="yiff.party") is not None
 
 
-def test_getProjectInfoFromPatreonId():
-    info = yiff.getProjectInfo(projid)
+def test_getProjectFromPatreonId():
+    info = yiff.getProject(projid)
     assert info.id == projid
     assert info.name == projname
     assert info.patreonurl == projpatreonurl
     assert info.yiffurl == projyiffurl
 
 
-def test_getProjectInfoFromPatronUrl():
-    info = yiff.getProjectInfo(projpatreonurl)
+def test_getProjectFromPatronUrl():
+    info = yiff.getProject(projpatreonurl)
     assert info.id == projid
     assert info.name == projname
     assert info.patreonurl == projpatreonurl
     assert info.yiffurl == projyiffurl
 
 
-def test_getProjectInfoFromYiffUrl():
-    info = yiff.getProjectInfo(projyiffurl)
+def test_getProjectFromYiffUrl():
+    info = yiff.getProject(projyiffurl)
     assert info.id == projid
     assert info.name == projname
     assert info.patreonurl == projpatreonurl

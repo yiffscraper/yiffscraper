@@ -3,7 +3,7 @@ import functools
 import requests
 
 
-def retryrequest(status_code=None, retries=4):
+def retryrequest(status_code=None, retries=4, outfunc=print):
     if status_code is None:
         status_code = range(500, 600)
     if not isinstance(status_code, (list, tuple)):
@@ -23,8 +23,8 @@ def retryrequest(status_code=None, retries=4):
                         raise
                     if tries >= retries:
                         raise
-                    print(e)
-                    print("Retrying")
+                    outfunc(e)
+                    outfunc("Retrying")
             return result
         return wrapper_retry
     return decorator_retry
