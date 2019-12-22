@@ -17,6 +17,17 @@ from tqdm import tqdm
 import downloader
 
 
+class YiffException(Exception):
+    pass
+
+
+class BadArgException(YiffException):
+    def __init__(self, arg):
+        message = (f"Invalid argument: {arg}\n"
+                   "Please enter a patreon id, Patreon url, or yiff.party url")
+        super().__init__(message)
+
+
 class PatreonScraper:
     def __init__(self, soup):
         self.soup = soup
@@ -124,7 +135,7 @@ class Project:
             patreonurl = f"https://www.patreon.com/user?u={patreonid}"
 
         if patreonurl is None:
-            return None
+            raise BadArgException(arg)
 
         return cls.getFromPatreonUrl(patreonurl)
 
@@ -193,47 +204,37 @@ async def downloadAll(items, update):
                 tqdm.write(f"{e.status} failed to download {e.request_info.url}")
 
 
-async def scrape(arg, update):
-    project = Project.get(arg)
-    if project is None:
-        print(f"Invalid argument: {arg}")
-        print("Please enter a patreon id, Patreon url, or yiff.party url")
-        return
-
-    print(f"Scraping {project}")
-
-    print("Getting links")
-    items = project.getItems()
-
-    print(f"Downloading {len(items)} links")
-    await downloadAll(items, update)
-
-
 # Scrape all the projects
 async def main():
-    args = sys.argv[1:]
-    print(r"""
- __     ___  __  __ _____
- \ \   / (_)/ _|/ _/ ____|
-  \ \_/ / _| |_| || (___   ___ _ __ __ _ _ __   ___ _ __
-   \   / | |  _|  _\___ \ / __| '__/ _` | '_ \ / _ \ '__|
-    | |  | | | | | ____) | (__| | | (_| | |_) |  __/ |
-    |_|  |_|_| |_||_____/ \___|_|  \__,_| .__/ \___|_|
-                                        | |
-                                        |_|
-    """)
+    try:
+        args = sys.argv[1:]
+        print(r"   __     ___  ___ __ _____\n"
+              r"   \ \   / (_)/ _// _/ ____|\n"
+              r"    \ \_/ / _| |_| || (___   ___ _ __ __ _ _ __   ___ _ __\n"
+              r"     \   / | |  _|  _\___ \ / __| '__/ _` | '_ \ / _ \ '__|\n"
+              r"      | |  | | | | | ____) | (__| | | (_| | |_) |  __/ |\n"
+              r"      |_|  |_|_| |_||_____/ \___|_|  \__,_| .__/ \___|_|\n"
+              r"                                          | |\n"
+              r"                                          |_|\n")
 
-    update = "--update" in args
-    projects = [a for a in args if not a.startswith("--")]
+        update = "--update" in args
+        projectArgs = [a for a in args if not a.startswith("--")]
 
-    for project in projects:
-        try:
-            await scrape(project, update)
-        except requests.exceptions.HTTPError as e:
-            print(e)
+        projects = [Project.get(arg) for arg in projectArgs]
 
-    print("\nAll projects done!\n")
-    print("\nEnjoy ;)")
+        for project in projects:
+            print(f"Scraping {project}")
+            items = project.getItems()
+
+            print(f"Downloading {len(items)} links")
+            await downloadAll(items, update)
+
+        print("\n"
+              "All projects done!\n"
+              "\n"
+              "Enjoy ;)")
+    except (YiffException, requests.exceptions.HTTPError) as e:
+        print(e, file=sys.stderr)
 
 
 # Main program
