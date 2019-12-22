@@ -16,11 +16,11 @@ setuptools.setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/yiffscraper/yiffscraper",
-    python_requires=">=3.5",
+    python_requires=">=3.6",
     install_requires=requirements,
     packages=setuptools.find_packages(),
     classifiers=[
-        "Programming Language :: Python :: 3.5",
+        "Programming Language :: Python :: 3.6",
         "Operating System :: OS Independent",
         "License :: OSI Approved :: MIT License"
     ],
