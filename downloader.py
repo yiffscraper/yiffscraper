@@ -69,7 +69,7 @@ async def download(session, url, path, update):
     path = Path(path)
     if update and not await needsUpdate(session, url, path):
         return
-    path.parent.mkdir(exist_ok=True)
+    path.parent.mkdir(parents=True, exist_ok=True)
     response = await session.get(url)
     with open(path, "wb") as out_file:
         while True:
