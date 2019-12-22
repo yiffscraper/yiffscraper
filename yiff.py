@@ -1,8 +1,3 @@
-# Original YiffScraper by shubham418
-# Update Project Manager: LaChocola
-# Update Coder: DigiDuncan
-# Bug fixer: Natalie Fearnley
-
 import asyncio
 import re
 import sys
