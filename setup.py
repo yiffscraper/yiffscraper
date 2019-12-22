@@ -26,7 +26,7 @@ setuptools.setup(
     ],
     entry_points={
         "console_scripts": [
-            "yiffx=yiffscraper.__main__:main"
+            "yiff=yiffscraper.__main__:main"
         ]
     }
 )
