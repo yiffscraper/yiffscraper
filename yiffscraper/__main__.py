@@ -53,12 +53,12 @@ async def scrape():
             project.getItems()
 
             print(f"Downloading {len(project.items)} links")
-            tasks = await project.downloadItems(args.update)
-            for task in tqdm(asyncio.as_completed(tasks), total=len(tasks), unit="file"):
-                try:
-                    await task
-                except ClientResponseError as e:
-                    tqdm.write(f"{e.status} failed to download {e.request_info.url}")
+
+            with tqdm(total=len(project.items)) as t:
+                async for error in project.downloadItems(args.update):
+                    t.update()
+                    if isinstance(error, ClientResponseError):
+                        tqdm.write(f"{error.status} failed to download {error.request_info.url}")
 
         print("\n"
               "All projects done!\n"

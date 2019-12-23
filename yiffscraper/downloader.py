@@ -70,12 +70,12 @@ async def download(session, url, path, update):
     if update and not await needsUpdate(session, url, path):
         return
     path.parent.mkdir(parents=True, exist_ok=True)
-    response = await session.get(url)
-    with open(path, "wb") as out_file:
-        while True:
-            chunk = await response.content.read(8192)
-            if not chunk:
-                break
-            out_file.write(chunk)
-        url_timestamp = getUrlTimestamp(response)
-        os.utime(path, (url_timestamp, url_timestamp))
+    async with session.get(url) as response:
+        with open(path, "wb") as out_file:
+            while True:
+                chunk = await response.content.read(8192)
+                if not chunk:
+                    break
+                out_file.write(chunk)
+            url_timestamp = getUrlTimestamp(response)
+            os.utime(path, (url_timestamp, url_timestamp))

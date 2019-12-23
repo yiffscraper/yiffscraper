@@ -1,6 +1,7 @@
 import re
 import urllib.parse
 from pathlib import Path, PurePosixPath
+import asyncio
 
 import aiohttp
 import requests
@@ -101,7 +102,12 @@ class Project:
         connector = aiohttp.connector.TCPConnector(limit=25, limit_per_host=10)
         async with aiohttp.ClientSession(connector=connector, raise_for_status=True) as session:
             tasks = [download(session, item.url, item.path, update) for item in self.items]
-        return tasks
+            for task in asyncio.as_completed(tasks):
+                try:
+                    await task
+                except aiohttp.ClientResponseError as e:
+                    yield e
+                yield None
 
     @classmethod
     def initSession(cls):
