@@ -55,10 +55,12 @@ async def scrape():
             print(f"Downloading {len(project.items)} links")
 
             with tqdm(total=len(project.items)) as t:
-                async for error in project.downloadItems(args.update):
+                async for r in project.downloadItems(args.update):
                     t.update()
-                    if isinstance(error, ClientResponseError):
-                        tqdm.write(f"{error.status} failed to download {error.request_info.url}")
+                    try:
+                        r.raise_for_status()
+                    except ClientResponseError as e:
+                        tqdm.write(f"{e.status} failed to download {e.request_info.url}")
 
         print("\n"
               "All projects done!\n"

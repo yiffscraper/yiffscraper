@@ -7,7 +7,7 @@ import aiohttp
 import requests
 from bs4 import BeautifulSoup
 
-from .downloader import download
+from .downloader import downloadAll
 
 
 class YiffException(Exception):
@@ -98,16 +98,8 @@ class Project:
 
         return self.items
 
-    async def downloadItems(self, update):
-        connector = aiohttp.connector.TCPConnector(limit=25, limit_per_host=10)
-        async with aiohttp.ClientSession(connector=connector, raise_for_status=True) as session:
-            tasks = [download(session, item.url, item.path, update) for item in self.items]
-            for task in asyncio.as_completed(tasks):
-                try:
-                    await task
-                except aiohttp.ClientResponseError as e:
-                    yield e
-                yield None
+    def downloadItems(self, update):
+        return downloadAll([(item.url, item.path) for item in self.items], update)
 
     @classmethod
     def initSession(cls):

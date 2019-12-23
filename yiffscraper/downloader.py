@@ -3,6 +3,7 @@ import functools
 from datetime import datetime
 import time
 from pathlib import Path
+import asyncio
 
 from dateutil.parser import parse as parsedate
 from dateutil import tz
@@ -79,3 +80,12 @@ async def download(session, url, path, update):
                 out_file.write(chunk)
             url_timestamp = getUrlTimestamp(response)
             os.utime(path, (url_timestamp, url_timestamp))
+
+
+async def downloadAll(items, update):
+    connector = aiohttp.connector.TCPConnector(limit=25, limit_per_host=10)
+    timeout = aiohttp.ClientTimeout(total=60)
+    async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
+        tasks = [download(session, url, path, update) for url, path in items]
+        for task in asyncio.as_completed(tasks):
+            yield await task
