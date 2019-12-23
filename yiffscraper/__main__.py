@@ -56,7 +56,7 @@ async def scrape():
             print(f"Fetching {len(project.items)} item headers")
 
             urlitems = []
-            with tqdm(total=len(project.items), unit="item") as t:
+            with tqdm(total=len(project.items), unit="") as t:
                 async for (urlitem, e) in project.fetchAllMetadata():
                     t.update()
                     if e is not None:
@@ -65,9 +65,9 @@ async def scrape():
                         continue
                     urlitems.append(urlitem)
 
-            print(f"Downloading {len(project.items)} items")
+            print(f"Downloading {len(urlitems)} items")
 
-            with tqdm(total=sum(i.size for i in urlitems), unit="bytes") as t:
+            with tqdm(total=sum(i.size for i in urlitems), unit="bytes", unit_scale=True) as t:
                 async for (urlitem, e) in UrlItem.downloadAll(urlitems, args.update):
                     t.update(urlitem.size)
                     if e is not None:
