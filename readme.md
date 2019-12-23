@@ -20,7 +20,7 @@ These instructions will get you a copy of yiffscraper installed and running on y
 Make sure you have Python 3.6+ installed before proceeding.
 
 ```
-pip install git+https://github.com/yiffscraper/yiffscraper
+pip install yiffscraper
 ```
 
 ### Running
