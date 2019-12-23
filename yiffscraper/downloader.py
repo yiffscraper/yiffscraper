@@ -65,9 +65,7 @@ class UrlItem:
 
     @classmethod
     async def fetchAllMetadata(cls, items):
-        connector = aiohttp.connector.TCPConnector(limit=25, limit_per_host=10)
-        timeout = aiohttp.ClientTimeout(total=60)
-        async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
+        async with newSession() as session:
             tasks = [cls.fetchMetadata(session, i.url, i.path) for i in items]
             for task in asyncio.as_completed(tasks):
                 urlitem = await task
@@ -75,9 +73,7 @@ class UrlItem:
 
     @classmethod
     async def downloadAll(cls, urlitems, update):
-        connector = aiohttp.connector.TCPConnector(limit=25, limit_per_host=10)
-        timeout = aiohttp.ClientTimeout(total=60)
-        async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
+        async with newSession() as session:
             tasks = [urlitem.download(session, update) for urlitem in urlitems]
             for task in asyncio.as_completed(tasks):
                 yield await task
@@ -105,3 +101,9 @@ def parsedateOrNone(dateString):
     if dateString is None:
         return None
     return parsedate(dateString)
+
+
+def newSession():
+    connector = aiohttp.connector.TCPConnector(limit=25, limit_per_host=10)
+    timeout = aiohttp.ClientTimeout(total=None)
+    return aiohttp.ClientSession(connector=connector, timeout=timeout)
