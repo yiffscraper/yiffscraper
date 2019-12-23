@@ -8,7 +8,7 @@ These instructions will get you a copy of yiffscraper installed and running on y
 
 ### Requirements
 
-* [Python 3.5+](https://www.python.org/downloads/release)
+* [Python 3.6+](https://www.python.org/downloads/release)
 * [beautifulsoup4](https://pypi.org/project/beautifulsoup4/)
 * [requests](https://pypi.org/project/requests/)
 * [tqdm](https://pypi.org/project/tqdm/)
@@ -17,7 +17,7 @@ These instructions will get you a copy of yiffscraper installed and running on y
 
 ### Installing
 
-Make sure you have Python 3.5+ installed before proceeding.
+Make sure you have Python 3.6+ installed before proceeding.
 
 ```
 pip install git+https://github.com/yiffscraper/yiffscraper
