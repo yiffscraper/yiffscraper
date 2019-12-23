@@ -1,13 +1,11 @@
 import re
 import urllib.parse
 from pathlib import Path, PurePosixPath
-import asyncio
 
-import aiohttp
 import requests
 from bs4 import BeautifulSoup
 
-from .downloader import downloadAll
+from .downloader import UrlItem
 
 
 class YiffException(Exception):
@@ -98,8 +96,8 @@ class Project:
 
         return self.items
 
-    def downloadItems(self, update):
-        return downloadAll([(item.url, item.path) for item in self.items], update)
+    def fetchAllMetadata(self):
+        return UrlItem.fetchAllMetadata(self.items)
 
     @classmethod
     def initSession(cls):

@@ -1,5 +1,4 @@
 import os
-import functools
 from datetime import datetime
 import time
 from pathlib import Path
@@ -10,29 +9,81 @@ from dateutil import tz
 import aiohttp
 
 
-def retryrequest(status_code=None, retries=4):
-    if status_code is None:
-        status_code = range(500, 600)
-    if not isinstance(status_code, (list, tuple)):
-        status_code = [status_code]
+class UrlItem:
+    __slots__ = ("url", "size", "lastModified", "path")
 
-    def decorator_retry(func):
-        @functools.wraps(func)
-        async def wrapper_retry(*args, **kwargs):
-            tries = 0
-            while True:
-                tries += 1
-                try:
-                    result = await func(*args, **kwargs)
-                    break
-                except aiohttp.ClientResponseError as e:
-                    if e.status not in status_code:
-                        raise
-                    if tries >= retries:
-                        raise
-            return result
-        return wrapper_retry
-    return decorator_retry
+    def __init__(self, url, size, lastModified, path=None):
+        self.url = url
+        self.size = size
+        self.lastModified = lastModified
+        self.path = path
+
+    def needsUpdate(self):
+        if self.path is None:
+            return False
+        fileLastModified = getFileTime(self.path)
+        if self.lastModified is None or fileLastModified is None:
+            return True
+        return self.lastModified > fileLastModified
+
+    @classmethod
+    async def fetchMetadata(cls, session, url, path=None):
+        async with session.head(url, allow_redirects=True) as response:
+            try:
+                response.raise_for_status()
+            except aiohttp.ClientResponseError as e:
+                # I don't like returning Exceptions, but I can't find a better way to pass a single error in an async loop
+                return (None, e)
+            size = int(response.headers.get("content-length", 0))
+            lastModified = parsedateOrNone(response.headers.get("last-modified", None))
+        return (cls(url, size, lastModified, path), None)
+
+    async def download(self, session, update):
+        if self.path is None:
+            return
+        if update and not await self.needsUpdate():
+            return
+
+        Path(self.path).parent.mkdir(parents=True, exist_ok=True)
+
+        async with session.get(self.url) as response:
+            try:
+                response.raise_for_status()
+            except aiohttp.ClientResponseError as e:
+                # I don't like returning Exceptions, but I can't find a better way to pass a single error in an async loop
+                return (self, e)
+            with open(self.path, "wb") as out_file:
+                while True:
+                    chunk = await response.content.read(8192)
+                    if not chunk:
+                        break
+                    out_file.write(chunk)
+
+        url_timestamp = getTimestamp(self.lastModified)
+        os.utime(self.path, (url_timestamp, url_timestamp))
+        return (self, None)
+
+    @classmethod
+    async def fetchAllMetadata(cls, items):
+        connector = aiohttp.connector.TCPConnector(limit=25, limit_per_host=10)
+        timeout = aiohttp.ClientTimeout(total=60)
+        async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
+            tasks = [cls.fetch(session, i.url, i.path) for i in items]
+            for task in asyncio.as_completed(tasks):
+                urlitem = await task
+                yield urlitem
+
+    @classmethod
+    async def downloadAll(cls, urlitems, update):
+        connector = aiohttp.connector.TCPConnector(limit=25, limit_per_host=10)
+        timeout = aiohttp.ClientTimeout(total=60)
+        async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
+            tasks = [urlitem.download(session, update) for urlitem in urlitems]
+            for task in asyncio.as_completed(tasks):
+                yield await task
+
+    def __len__(self):
+        return self.size
 
 
 def getFileTime(path):
@@ -43,49 +94,14 @@ def getFileTime(path):
     return file_datetime
 
 
-def getUrlTime(response):
-    if "last-modified" not in response.headers:
+def getTimestamp(t):
+    if t is None:
         return None
-    return parsedate(response.headers["last-modified"])
+    timestamp = time.mktime(t.timetuple())
+    return timestamp
 
 
-def getUrlTimestamp(response):
-    url_time = getUrlTime(response)
-    if url_time is None:
+def parsedateOrNone(dateString):
+    if dateString is None:
         return None
-    url_timestamp = time.mktime(url_time.timetuple())
-    return url_timestamp
-
-
-async def needsUpdate(session, url, path):
-    response = await session.head(url, allow_redirects=True)
-    url_time = getUrlTime(response)
-    file_time = getFileTime(path)
-    if url_time is None or file_time is None:
-        return True
-    return url_time > file_time
-
-
-async def download(session, url, path, update):
-    path = Path(path)
-    if update and not await needsUpdate(session, url, path):
-        return
-    path.parent.mkdir(parents=True, exist_ok=True)
-    async with session.get(url) as response:
-        with open(path, "wb") as out_file:
-            while True:
-                chunk = await response.content.read(8192)
-                if not chunk:
-                    break
-                out_file.write(chunk)
-            url_timestamp = getUrlTimestamp(response)
-            os.utime(path, (url_timestamp, url_timestamp))
-
-
-async def downloadAll(items, update):
-    connector = aiohttp.connector.TCPConnector(limit=25, limit_per_host=10)
-    timeout = aiohttp.ClientTimeout(total=60)
-    async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
-        tasks = [download(session, url, path, update) for url, path in items]
-        for task in asyncio.as_completed(tasks):
-            yield await task
+    return parsedate(dateString)

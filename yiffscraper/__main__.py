@@ -52,15 +52,27 @@ async def scrape():
             print(f"Scraping {project}")
             project.getItems()
 
-            print(f"Downloading {len(project.items)} links")
+            print(f"Fetching {len(project.items)} item headers")
 
-            with tqdm(total=len(project.items)) as t:
-                async for r in project.downloadItems(args.update):
+            urlitems = []
+            with tqdm(total=len(project.items), unit="item") as t:
+                async for (urlitem, e) in project.fetchAllMetadata():
                     t.update()
-                    try:
-                        r.raise_for_status()
-                    except ClientResponseError as e:
-                        tqdm.write(f"{e.status} failed to download {e.request_info.url}")
+                    if e is not None:
+                        if isinstance(e, ClientResponseError):
+                            tqdm.write(f"{e.status} failed to download {e.request_info.url}")
+                        continue
+                    urlitems.append(urlitem)
+
+            print(f"Downloading {len(project.items)} items")
+
+            with tqdm(total=sum(i.size for i in urlitems), unit="bytes") as t:
+                async for (urlitem, e) in project.downloadItems(args.update):
+                    t.update(urlitem.size)
+                    if e is not None:
+                        if isinstance(e, ClientResponseError):
+                            tqdm.write(f"{e.status} failed to download {e.request_info.url}")
+                        continue
 
         print("\n"
               "All projects done!\n"
