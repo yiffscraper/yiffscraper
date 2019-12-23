@@ -8,6 +8,7 @@ from requests.exceptions import HTTPError
 from tqdm import tqdm
 
 from .yiffscraper import Project, YiffException
+from .downloader import UrlItem
 
 
 class YiffArgs:
@@ -67,7 +68,7 @@ async def scrape():
             print(f"Downloading {len(project.items)} items")
 
             with tqdm(total=sum(i.size for i in urlitems), unit="bytes") as t:
-                async for (urlitem, e) in project.downloadItems(args.update):
+                async for (urlitem, e) in UrlItem.downloadAll(urlitems, args.update):
                     t.update(urlitem.size)
                     if e is not None:
                         if isinstance(e, ClientResponseError):

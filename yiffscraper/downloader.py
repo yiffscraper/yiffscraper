@@ -68,7 +68,7 @@ class UrlItem:
         connector = aiohttp.connector.TCPConnector(limit=25, limit_per_host=10)
         timeout = aiohttp.ClientTimeout(total=60)
         async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
-            tasks = [cls.fetch(session, i.url, i.path) for i in items]
+            tasks = [cls.fetchMetadata(session, i.url, i.path) for i in items]
             for task in asyncio.as_completed(tasks):
                 urlitem = await task
                 yield urlitem
