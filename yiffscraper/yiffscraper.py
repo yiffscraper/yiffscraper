@@ -5,7 +5,7 @@ from pathlib import Path, PurePosixPath
 import requests
 from bs4 import BeautifulSoup
 
-from .downloader import UrlItem
+from yiffscraper.downloader import UrlItem
 
 
 class YiffException(Exception):
@@ -109,7 +109,7 @@ class Project:
     # Check if the given url is a data link
     @classmethod
     def isDataLink(cls, url):
-        return re.match(r"/(patreon_data|patreon_inline|shared_data)/\d+/\d+/.+$", url) is not None
+        return re.search(r"/(patreon_data|patreon_inline|shared_data)/\d+/\d+/", url) is not None
 
     # Takes a patreon id, patreon url, or yiff url
     # Returns a Project object

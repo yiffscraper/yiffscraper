@@ -7,8 +7,8 @@ from aiohttp import ClientResponseError
 from requests.exceptions import HTTPError
 from tqdm import tqdm
 
-from .yiffscraper import Project, YiffException
-from .downloader import UrlItem
+from yiffscraper.yiffscraper import Project, YiffException
+from yiffscraper.downloader import UrlItem
 
 
 class YiffArgs:
