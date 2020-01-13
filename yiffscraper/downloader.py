@@ -12,7 +12,7 @@ import aiohttp
 
 def longpath(p):
     if p is None or platform.system() != "Windows":
-        return p
+        return Path(p)
     return Path("\\\\?\\" + str(Path.cwd() / p))
 
 
