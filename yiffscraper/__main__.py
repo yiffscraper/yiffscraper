@@ -1,3 +1,4 @@
+import platform
 import sys
 import asyncio
 from pathlib import Path
@@ -84,6 +85,9 @@ async def scrape():
 
 
 def main():
+    # Temporary workaround for errors thrown by aiohttp 3.6.2 in windows
+    if platform.system() == "Windows":
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     loop = asyncio.get_event_loop()
     loop.run_until_complete(scrape())
     loop.close()
