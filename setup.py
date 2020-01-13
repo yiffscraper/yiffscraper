@@ -9,7 +9,7 @@ with open('requirements.txt') as f:
 
 setuptools.setup(
     name="yiffscraper",
-    version="1.0.0",
+    version="1.0.1",
     author="Natalie Fearnley",
     author_email="nfearnley@gmail.com",
     description="Scrapes off all content from a yiff.party page",
