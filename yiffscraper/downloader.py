@@ -1,4 +1,5 @@
 import os
+import platform
 from datetime import datetime
 import time
 from pathlib import Path
@@ -9,6 +10,12 @@ from dateutil import tz
 import aiohttp
 
 
+def longpath(p):
+    if p is None or platform.system() != "Windows":
+        return p
+    return Path("\\\\?\\" + str(Path.cwd() / p))
+
+
 class UrlItem:
     __slots__ = ("url", "size", "lastModified", "path")
 
@@ -16,7 +23,7 @@ class UrlItem:
         self.url = url
         self.size = size
         self.lastModified = lastModified
-        self.path = path
+        self.path = longpath(path)
 
     def needsUpdate(self):
         if self.path is None:
@@ -27,7 +34,7 @@ class UrlItem:
         return self.lastModified > fileLastModified
 
     @classmethod
-    async def fetchMetadata(cls, session, url, path=None):
+    async def fetchMetadata(cls, session, url, path):
         async with session.head(url, allow_redirects=True) as response:
             try:
                 response.raise_for_status()
@@ -44,7 +51,7 @@ class UrlItem:
         if update and not await self.needsUpdate():
             return
 
-        Path(self.path).parent.mkdir(parents=True, exist_ok=True)
+        self.path.parent.mkdir(parents=True, exist_ok=True)
 
         async with session.get(self.url) as response:
             try:
